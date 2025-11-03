@@ -162,3 +162,89 @@ class VideoFeedController extends GetxController {
     isProductOverlayVisible.value = !isProductOverlayVisible.value;
   }
 }
+
+// 4. VIEWS (UI)
+
+// Product card shown in the overlay
+class ProductTag extends StatelessWidget {
+  final Product product;
+
+  const ProductTag({Key? key, required this.product}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.95),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              borderRadius: BorderRadius.circular(8),
+              image: DecorationImage(
+                image: NetworkImage(product.imageUrl),
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                product.name,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: Colors.black87,
+                ),
+              ),
+              Text(
+                '\$${product.price.toStringAsFixed(2)}',
+                style: TextStyle(
+                  color: Colors.pink,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          IconButton(
+            icon: const Icon(
+              Icons.shopping_cart_outlined,
+              size: 20,
+              color: Colors.pink,
+            ),
+            onPressed: () {
+              // Action: Buy instantly without leaving the video
+              Get.snackbar(
+                'Purchased!',
+                '${product.name} added to cart instantly.',
+                snackPosition: SnackPosition.TOP,
+                backgroundColor: Colors.pinkAccent,
+                colorText: Colors.white,
+              );
+            },
+            visualDensity: VisualDensity.compact,
+          ),
+        ],
+      ),
+    );
+  }
+}
