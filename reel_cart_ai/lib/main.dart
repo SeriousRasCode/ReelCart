@@ -94,3 +94,71 @@ List<VideoItem> generateMockVideos(int count) {
     );
   });
 }
+
+// 3. GETX CONTROLLER
+
+class VideoFeedController extends GetxController {
+  // The endless feed of shoppable videos
+  final videos = <VideoItem>[].obs;
+
+  // State to handle the visibility of the shoppable product tags overlay
+  final isProductOverlayVisible = false.obs;
+
+  // The index of the video currently being viewed
+  int currentVideoIndex = 0;
+
+  @override
+  void onInit() {
+    // 1. Initial Load: Load the first set of recommended videos
+    loadInitialFeed();
+    super.onInit();
+  }
+
+  // Simulates loading the initial personalized feed
+  void loadInitialFeed() {
+    videos.assignAll(generateMockVideos(5));
+    Get.snackbar(
+      'Feed Ready',
+      '5 personalized videos loaded.',
+      snackPosition: SnackPosition.BOTTOM,
+    );
+  }
+
+  // Simulates the AI Recommendation Engine loading more content
+  void loadMoreVideos() async {
+    // Prevent multiple simultaneous loads
+    if (videos.length > 20) return; // Simple safety limit for MVP
+
+    // Simulate network delay
+    await 2.seconds.delay();
+
+    // The core AI logic simulation: Append a new batch of 5 videos
+    final newVideos = generateMockVideos(5);
+    videos.addAll(newVideos);
+
+    Get.snackbar(
+      'AI Recommendation',
+      'New batch of ${newVideos.length} videos added to the end of the feed.',
+      snackPosition: SnackPosition.BOTTOM,
+      duration: const Duration(seconds: 1),
+    );
+  }
+
+  // Handles the vertical scroll event (user viewing a new video)
+  void onVideoPageChanged(int index) {
+    currentVideoIndex = index;
+    // Hide overlay when video changes
+    isProductOverlayVisible.value = false;
+
+    // Trigger AI loading for more content when near the end of the current feed
+
+    if (index >= videos.length - 3) {
+      loadMoreVideos();
+    }
+  }
+
+  // Toggles the visibility of the shoppable tags
+  void toggleProductOverlay() {
+    isProductOverlayVisible.value = !isProductOverlayVisible.value;
+  }
+}
