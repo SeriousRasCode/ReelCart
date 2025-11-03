@@ -2,6 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'dart:math';
 
+// --- Global Constants for Mocking Real Assets ---
+const String mockVideoThumbnailUrl =
+    "https://placehold.co/600x1000/2A2F34/FFFFFF/png?text=AI+Reel+Content";
+const String mockCreatorImageUrl =
+    "https://placehold.co/40x40/FF69B4/FFFFFF/png?text=P";
+
 // ----------------------------------------------------
 // 1. MODELS
 // ----------------------------------------------------
@@ -11,14 +17,8 @@ class Product {
   final String id;
   final String name;
   final double price;
-  final String imageUrl; // Mocked, using local icons for stability
 
-  Product({
-    required this.id,
-    required this.name,
-    required this.price,
-    required this.imageUrl,
-  });
+  Product({required this.id, required this.name, required this.price});
 
   // Method for easy comparison and cart grouping
   @override
@@ -44,9 +44,10 @@ class VideoItem {
   final String id;
   final String title;
   final String creator;
-  final String videoUrl; // Mocked
+  final String videoUrl; // <--- This is the actual video stream URL
+  final String
+  thumbnailUrl; // <--- This is the image used as the visual placeholder
   final List<Product> shoppableProducts;
-  final Color mockColor; // For visual difference in the feed
 
   bool isLiked;
   int likeCount;
@@ -56,8 +57,8 @@ class VideoItem {
     required this.title,
     required this.creator,
     required this.videoUrl,
+    required this.thumbnailUrl,
     required this.shoppableProducts,
-    required this.mockColor,
     this.isLiked = false,
     this.likeCount = 0,
   });
@@ -68,38 +69,12 @@ class VideoItem {
 // ----------------------------------------------------
 
 final _random = Random();
-Color _getRandomColor() => Color.fromRGBO(
-  _random.nextInt(256),
-  _random.nextInt(256),
-  _random.nextInt(256),
-  1,
-);
 
 final List<Product> mockProducts = [
-  Product(
-    id: 'p1',
-    name: 'Vintage Camera',
-    price: 299.99,
-    imageUrl: 'mock/camera.png',
-  ),
-  Product(
-    id: 'p2',
-    name: 'Leather Satchel',
-    price: 145.00,
-    imageUrl: 'mock/satchel.png',
-  ),
-  Product(
-    id: 'p3',
-    name: 'Noise Cancelling Headphones',
-    price: 350.50,
-    imageUrl: 'mock/headphones.png',
-  ),
-  Product(
-    id: 'p4',
-    name: 'Minimalist Watch',
-    price: 89.99,
-    imageUrl: 'mock/watch.png',
-  ),
+  Product(id: 'p1', name: 'Vintage Camera', price: 299.99),
+  Product(id: 'p2', name: 'Leather Satchel', price: 145.00),
+  Product(id: 'p3', name: 'Noise Cancelling Headphones', price: 350.50),
+  Product(id: 'p4', name: 'Minimalist Watch', price: 89.99),
 ];
 
 List<VideoItem> generateMockVideos(int count, int startingIndex) {
@@ -113,9 +88,10 @@ List<VideoItem> generateMockVideos(int count, int startingIndex) {
       title:
           'AI Recommendation Reel #${startingIndex + index + 1}: ${products.map((p) => p.name).join(' & ')} Review',
       creator: 'Creator_${startingIndex + index + 1}',
-      videoUrl: 'mock_video_url_${startingIndex + index + 1}',
+      videoUrl:
+          'https://mock-video-stream.com/reel-id-${startingIndex + index + 1}.mp4', // Mock real URL
+      thumbnailUrl: mockVideoThumbnailUrl, // Use a consistent mock image
       shoppableProducts: products,
-      mockColor: _getRandomColor(),
       likeCount: 500 + _random.nextInt(2000),
       isLiked: _random.nextBool(),
     );
@@ -139,7 +115,10 @@ class RootController extends GetxController {
     }
     // When navigating back to the feed, ensure the active video starts playing
     if (index == 0) {
-      Get.find<FeedController>().activeReelController?.isPlaying.value = true;
+      // Small delay to ensure the PageView has settled
+      Future.delayed(const Duration(milliseconds: 100), () {
+        Get.find<FeedController>().activeReelController?.isPlaying.value = true;
+      });
     }
   }
 }
@@ -149,6 +128,9 @@ class CartController extends GetxController {
   final cartItems = <CartItem>[].obs;
   static const double _taxRate = 0.08; // 8% tax
 
+  // Track which product IDs already have quantity listeners registered
+  final Set<String> _quantityListenerSetup = <String>{};
+
   // --- Computed Properties ---
   final subtotal = 0.0.obs;
   final tax = 0.0.obs;
@@ -156,18 +138,22 @@ class CartController extends GetxController {
 
   @override
   void onInit() {
-    // Recompute totals whenever cart items or their quantities change
-    ever(cartItems, (_) => _updateTotals());
-    // Listen to changes within each CartItem's quantity
-    // Initial listener setup is done after all items are added
+    // Recompute totals whenever cart items change and ensure quantity listeners are set up
+    ever(cartItems, (_) {
+      _setupQuantityListeners();
+      _updateTotals();
+    });
     super.onInit();
   }
 
-  // Helper to ensure all items' quantity changes are tracked
+  // Helper to ensure all items' quantity changes are tracked (register once per product)
   void _setupQuantityListeners() {
     for (var item in cartItems) {
-      // Add listener for item's quantity changes
+      // Skip if we've already attached a listener for this product id
+      if (_quantityListenerSetup.contains(item.product.id)) continue;
+
       ever(item.quantity, (_) => _updateTotals());
+      _quantityListenerSetup.add(item.product.id);
     }
   }
 
@@ -192,7 +178,7 @@ class CartController extends GetxController {
       final newItem = CartItem(product: product, initialQuantity: 1);
       cartItems.add(newItem);
     }
-    _setupQuantityListeners(); // Re-setup listeners to include new item
+    _setupQuantityListeners(); // Ensure listener is attached for new item
     _updateTotals();
 
     Get.snackbar(
@@ -217,6 +203,8 @@ class CartController extends GetxController {
 
   void removeItem(CartItem item) {
     cartItems.removeWhere((cartItem) => cartItem.product.id == item.product.id);
+    // Clean up tracking so listeners won't be re-skipped if the same product is re-added later
+    _quantityListenerSetup.remove(item.product.id);
     _updateTotals();
     Get.snackbar(
       'Item Removed',
@@ -229,6 +217,7 @@ class CartController extends GetxController {
 
   void clearCart() {
     cartItems.clear();
+    _quantityListenerSetup.clear();
     _updateTotals();
   }
 }
@@ -289,6 +278,8 @@ class FeedController extends GetxController {
       '5 personalized videos loaded.',
       snackPosition: SnackPosition.BOTTOM,
     );
+    // Initial controller setup for the first video
+    onVideoPageChanged(0);
   }
 
   void loadMoreVideos() async {
@@ -308,8 +299,17 @@ class FeedController extends GetxController {
 
     // Only attempt to find the new controller if the index is valid
     if (index < videos.length) {
-      final newController = Get.find<ReelController>(tag: videos[index].id);
-      newController.isPlaying.value = true;
+      // We use Get.put/find with a tag based on the video ID to manage controllers per reel
+      final newController = Get.put(
+        ReelController(videos[index]),
+        tag: videos[index].id,
+        permanent: true,
+      );
+
+      // Only play the new video if we are on the Feed page
+      if (Get.find<RootController>().currentIndex.value == 0) {
+        newController.isPlaying.value = true;
+      }
       activeReelController = newController;
 
       // Load more content when near the end
@@ -368,12 +368,12 @@ class ProductTag extends StatelessWidget {
             height: 40,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: Colors.grey[200],
+              color: Colors.pink.shade50,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
               _getProductIcon(product.name),
-              color: Colors.black54,
+              color: Colors.pink,
               size: 24,
             ),
           ),
@@ -459,65 +459,75 @@ class VideoPlayerWidget extends StatelessWidget {
   final ReelController reelController;
 
   VideoPlayerWidget({Key? key, required this.video})
-    : reelController = Get.put(ReelController(video), tag: video.id),
+    : reelController = Get.find<ReelController>(tag: video.id),
       super(key: key);
+
+  Widget _buildPlaybackIcon(bool isPlaying) {
+    return AnimatedOpacity(
+      opacity: isPlaying ? 0.0 : 1.0,
+      duration: const Duration(milliseconds: 300),
+      child: IgnorePointer(
+        ignoring: isPlaying,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.black54,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.play_arrow_rounded,
+            size: 80,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final rootController = Get.find<RootController>();
-
     // Listen to isPlaying state only when the Feed tab is active (index 0)
-    final isFeedActive = rootController.currentIndex.value == 0;
+    final isFeedActive = Get.find<RootController>().currentIndex.value == 0;
 
     return GestureDetector(
       onTap: Get.find<FeedController>().toggleProductOverlay,
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // 1. Simulated Video Player View (Background color as the video screen)
+          // 1. Video Stream Placeholder View
           Container(
-            color: video.mockColor,
-            child: Center(
-              // Obx handles the Play/Pause icon visibility and the 'Playing' label
-              child: Obx(
-                () => Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      reelController.isPlaying.value && isFeedActive
-                          ? 'VIDEO PLAYING...' // Enhanced Mock Status
-                          : 'VIDEO PAUSED',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        backgroundColor: Colors.black.withOpacity(0.4),
-                        shadows: const [
-                          Shadow(color: Colors.black, blurRadius: 4),
-                        ],
+            color: Colors.black, // Background color for video area
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // Network Image Placeholder for Video
+                Image.network(
+                  video.thumbnailUrl,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Center(
+                      child: CircularProgressIndicator(
+                        color: Colors.pink.shade300,
                       ),
-                    ),
-                    const SizedBox(height: 20),
-                    // Only show play icon if paused AND on the feed screen
-                    if (!reelController.isPlaying.value && isFeedActive)
-                      GestureDetector(
-                        onTap: reelController.togglePlayPause,
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.black54,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.play_arrow_rounded,
-                            size: 80,
-                            color: Colors.white,
-                          ),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) {
+                    return Center(
+                      child: Text(
+                        "Error: Could not load real video/thumbnail from URL:\n${video.videoUrl}",
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
                         ),
                       ),
-                  ],
+                    );
+                  },
                 ),
-              ),
+                // Dimming overlay for better text contrast
+                Container(color: Colors.black.withOpacity(0.35)),
+              ],
             ),
           ),
 
@@ -530,22 +540,43 @@ class VideoPlayerWidget extends StatelessWidget {
             ),
           ),
 
-          // 3. Video Metadata (Bottom Left)
+          // 3. Play/Pause Icon Center
+          Center(
+            child: Obx(
+              () => _buildPlaybackIcon(
+                reelController.isPlaying.value && isFeedActive,
+              ),
+            ),
+          ),
+
+          // 4. Video Metadata (Bottom Left)
           Positioned(
             bottom: 20,
             left: 15,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '@${video.creator}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
+                Row(
+                  children: [
+                    const CircleAvatar(
+                      radius: 12,
+                      backgroundImage: NetworkImage(
+                        mockCreatorImageUrl,
+                      ), // Creator profile image
+                      backgroundColor: Colors.pinkAccent,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '@${video.creator}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 8),
                 SizedBox(
                   width: Get.width * 0.7,
                   child: Text(
@@ -555,11 +586,20 @@ class VideoPlayerWidget extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                // Explicitly show the mock URL to demonstrate the structure
+                const SizedBox(height: 4),
+                SizedBox(
+                  width: Get.width * 0.7,
+                  child: Text(
+                    'STREAM MOCK: ${video.videoUrl.split('/').last}',
+                    style: TextStyle(color: Colors.pink.shade100, fontSize: 10),
+                  ),
+                ),
               ],
             ),
           ),
 
-          // 4. Right-side Action Buttons
+          // 5. Right-side Action Buttons
           Positioned(
             bottom: 20,
             right: 10,
@@ -622,7 +662,7 @@ class VideoPlayerWidget extends StatelessWidget {
             ),
           ),
 
-          // 5. Shoppable Tags Overlay
+          // 6. Shoppable Tags Overlay
           ShoppableOverlay(video: video),
         ],
       ),
@@ -667,6 +707,8 @@ class FeedView extends GetView<FeedController> {
           },
           itemBuilder: (context, index) {
             final video = controller.videos[index];
+            // Ensure the controller is put into GetX with a unique tag before accessing it
+            Get.put(ReelController(video), tag: video.id, permanent: true);
             return VideoPlayerWidget(video: video);
           },
         );
@@ -1068,15 +1110,14 @@ class MainAppWrapper extends GetView<RootController> {
   // Define the pages for the BottomNavigationBar
   final List<Widget> _pages = const [
     FeedView(), // Index 0
-    SearchView(), // Index 1 (Fixed color)
+    SearchView(), // Index 1
     CartView(), // Index 2
-    ProfileView(), // Index 3 (Fixed color)
+    ProfileView(), // Index 3
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Scaffold here should not set background, let the views manage it.
       body: Obx(
         () => IndexedStack(
           index: controller.currentIndex.value,
