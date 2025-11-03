@@ -430,3 +430,60 @@ class VideoPlayerWidget extends GetView<VideoFeedController> {
     );
   }
 }
+
+// The main screen with the endless, personalized video feed
+class VideoFeedView extends GetView<VideoFeedController> {
+  const VideoFeedView({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        title: const Text(
+          'ReelCart AI',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.5,
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.camera_alt_outlined, color: Colors.white),
+            onPressed: () {
+              // Simulate Seller Tool: AI product tagging
+              Get.snackbar(
+                'Seller Tool',
+                'Opening AI video tagging tool for sellers...',
+                snackPosition: SnackPosition.BOTTOM,
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.search, color: Colors.white),
+            onPressed: () {},
+          ),
+        ],
+      ),
+      body: Obx(() {
+        if (controller.videos.isEmpty) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        // Use PageView.builder to handle the vertical scrolling experience
+        return PageView.builder(
+          scrollDirection: Axis.vertical,
+          itemCount: controller.videos.length,
+          onPageChanged: controller.onVideoPageChanged,
+          itemBuilder: (context, index) {
+            final video = controller.videos[index];
+            return VideoPlayerWidget(video: video);
+          },
+        );
+      }),
+    );
+  }
+}
