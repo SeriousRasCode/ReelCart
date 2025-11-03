@@ -150,25 +150,26 @@ class CartController extends GetxController {
   static const double _taxRate = 0.08; // 8% tax
 
   // --- Computed Properties ---
-
-  // Calculate subtotal of all items
   final subtotal = 0.0.obs;
-
-  // Calculate tax amount
   final tax = 0.0.obs;
-
-  // Calculate grand total
   final total = 0.0.obs;
 
   @override
   void onInit() {
     // Recompute totals whenever cart items or their quantities change
     ever(cartItems, (_) => _updateTotals());
-    // Also listen to changes within each CartItem's quantity
+    // Listen to changes within each CartItem's quantity
+    // Initial listener setup is done after all items are added
+    super.onInit();
+  }
+
+  // Helper to ensure all items' quantity changes are tracked
+  void _setupQuantityListeners() {
     for (var item in cartItems) {
+      // Ensure only one listener per item's quantity is active
+      item.quantity.removeAllListeners();
       ever(item.quantity, (_) => _updateTotals());
     }
-    super.onInit();
   }
 
   void _updateTotals() {
@@ -190,10 +191,9 @@ class CartController extends GetxController {
       existingItem.quantity.value++;
     } else {
       final newItem = CartItem(product: product, initialQuantity: 1);
-      // Ensure we listen for changes on this new item's quantity
-      ever(newItem.quantity, (_) => _updateTotals());
       cartItems.add(newItem);
     }
+    _setupQuantityListeners(); // Re-setup listeners to include new item
     _updateTotals();
 
     Get.snackbar(
@@ -211,7 +211,7 @@ class CartController extends GetxController {
     if (item.quantity.value > 1) {
       item.quantity.value--;
     } else {
-      // Remove item if quantity drops to zero (or lower)
+      // Remove item if quantity drops to 1 (will be 0 after decrement and removal)
       removeItem(item);
     }
   }
@@ -226,6 +226,11 @@ class CartController extends GetxController {
       backgroundColor: Colors.red.shade700,
       colorText: Colors.white,
     );
+  }
+
+  void clearCart() {
+    cartItems.clear();
+    _updateTotals();
   }
 }
 
@@ -248,7 +253,8 @@ class ReelController extends GetxController {
 
   void togglePlayPause() {
     isPlaying.toggle();
-    // In a real app: isPlaying.value ? _videoPlayerController.play() : _videoPlayerController.pause();
+    // In a real application, you would use:
+    // isPlaying.value ? _videoPlayerController.play() : _videoPlayerController.pause();
   }
 
   void toggleLike() {
@@ -301,14 +307,16 @@ class FeedController extends GetxController {
     currentVideoIndex = index;
     isProductOverlayVisible.value = false;
 
-    // Load and play the new video's controller
-    final newController = Get.find<ReelController>(tag: videos[index].id);
-    newController.isPlaying.value = true;
-    activeReelController = newController;
+    // Only attempt to find the new controller if the index is valid
+    if (index < videos.length) {
+      final newController = Get.find<ReelController>(tag: videos[index].id);
+      newController.isPlaying.value = true;
+      activeReelController = newController;
 
-    // Load more content when near the end
-    if (index >= videos.length - 3) {
-      loadMoreVideos();
+      // Load more content when near the end
+      if (index >= videos.length - 3) {
+        loadMoreVideos();
+      }
     }
   }
 
@@ -335,7 +343,7 @@ class ProductTag extends StatelessWidget {
   final Product product;
   final CartController cartController = Get.find<CartController>();
 
-  ProductTag({Key? key, required this.product}) : super(key: key);
+  const ProductTag({Key? key, required this.product}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -460,7 +468,6 @@ class VideoPlayerWidget extends StatelessWidget {
     final rootController = Get.find<RootController>();
 
     // Listen to isPlaying state only when the Feed tab is active (index 0)
-    // to prevent unwanted play/pause messages when switching tabs.
     final isFeedActive = rootController.currentIndex.value == 0;
 
     return GestureDetector(
@@ -472,10 +479,29 @@ class VideoPlayerWidget extends StatelessWidget {
           Container(
             color: video.mockColor,
             child: Center(
+              // Obx handles the Play/Pause icon visibility and the 'Playing' label
               child: Obx(
-                () => reelController.isPlaying.value || !isFeedActive
-                    ? const SizedBox.shrink()
-                    : GestureDetector(
+                () => Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      reelController.isPlaying.value && isFeedActive
+                          ? 'VIDEO PLAYING...' // Enhanced Mock Status
+                          : 'VIDEO PAUSED',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        backgroundColor: Colors.black.withOpacity(0.4),
+                        shadows: const [
+                          Shadow(color: Colors.black, blurRadius: 4),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    // Only show play icon if paused AND on the feed screen
+                    if (!reelController.isPlaying.value && isFeedActive)
+                      GestureDetector(
                         onTap: reelController.togglePlayPause,
                         child: Container(
                           padding: const EdgeInsets.all(16),
@@ -490,6 +516,8 @@ class VideoPlayerWidget extends StatelessWidget {
                           ),
                         ),
                       ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -609,7 +637,9 @@ class FeedView extends GetView<FeedController> {
 
   @override
   Widget build(BuildContext context) {
+    // Scaffold background is black for the TikTok-like feed experience
     return Scaffold(
+      backgroundColor: Colors.black, // Explicitly black
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const Text(
@@ -782,8 +812,9 @@ class CartView extends GetView<CartController> {
         title: const Text('Your Shopping Cart'),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
-        elevation: 0,
+        elevation: 1,
       ),
+      // Explicitly set light background for readability
       backgroundColor: Colors.grey[50],
       body: Obx(() {
         if (controller.cartItems.isEmpty) {
@@ -855,15 +886,25 @@ class CartView extends GetView<CartController> {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () {
-                        Get.snackbar(
-                          'Checkout Simulation',
-                          'Processing purchase of \$${controller.total.value.toStringAsFixed(2)}.',
-                          snackPosition: SnackPosition.BOTTOM,
-                          backgroundColor: Colors.pink,
-                          colorText: Colors.white,
-                        );
-                        // Simulate clearing cart after checkout
-                        controller.cartItems.clear();
+                        if (controller.cartItems.isNotEmpty) {
+                          Get.snackbar(
+                            'Checkout Successful!',
+                            'Your purchase of \$${controller.total.value.toStringAsFixed(2)} has been processed.',
+                            snackPosition: SnackPosition.BOTTOM,
+                            backgroundColor: Colors.pink,
+                            colorText: Colors.white,
+                          );
+                          // Clear the cart after simulated successful checkout
+                          controller.clearCart();
+                        } else {
+                          Get.snackbar(
+                            'Cart Empty',
+                            'Please add items to your cart before proceeding.',
+                            snackPosition: SnackPosition.BOTTOM,
+                            backgroundColor: Colors.orange,
+                            colorText: Colors.white,
+                          );
+                        }
                       },
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
@@ -898,6 +939,8 @@ class ProfileView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // Explicitly set light background for readability
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('User Profile'),
         backgroundColor: Colors.white,
@@ -908,8 +951,9 @@ class ProfileView extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(32.0),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.start,
             children: [
+              const SizedBox(height: 30),
               const CircleAvatar(
                 radius: 60,
                 backgroundColor: Colors.pinkAccent,
@@ -918,7 +962,11 @@ class ProfileView extends StatelessWidget {
               const SizedBox(height: 16),
               const Text(
                 '@ShopperAI_123',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
@@ -926,6 +974,7 @@ class ProfileView extends StatelessWidget {
                 style: TextStyle(fontSize: 16, color: Colors.grey[600]),
               ),
               const SizedBox(height: 32),
+              const Divider(),
               ListTile(
                 leading: const Icon(Icons.favorite_border, color: Colors.red),
                 title: const Text('Liked Reels'),
@@ -973,6 +1022,43 @@ class ProfileView extends StatelessWidget {
   }
 }
 
+// Mock Search View (Now readable)
+class SearchView extends StatelessWidget {
+  const SearchView({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      // Explicitly set light background for readability
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: const Text('Search & Explore'),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 1,
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.compass_calibration, size: 80, color: Colors.pink),
+            const SizedBox(height: 16),
+            Text(
+              'Explore new Reels and Products!',
+              style: TextStyle(fontSize: 22, color: Colors.grey[800]),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Search feature coming soon...',
+              style: TextStyle(fontSize: 16, color: Colors.grey[500]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ----------------------------------------------------
 // MAIN APP NAVIGATION WRAPPER
 // ----------------------------------------------------
@@ -983,19 +1069,15 @@ class MainAppWrapper extends GetView<RootController> {
   // Define the pages for the BottomNavigationBar
   final List<Widget> _pages = const [
     FeedView(), // Index 0
-    Center(
-      child: Text(
-        'Search & Explore (Mock)',
-        style: TextStyle(color: Colors.black, fontSize: 24),
-      ),
-    ), // Index 1
+    SearchView(), // Index 1 (Fixed color)
     CartView(), // Index 2
-    ProfileView(), // Index 3
+    ProfileView(), // Index 3 (Fixed color)
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // Scaffold here should not set background, let the views manage it.
       body: Obx(
         () => IndexedStack(
           index: controller.currentIndex.value,
@@ -1072,7 +1154,8 @@ class ReelCartApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.pink,
         visualDensity: VisualDensity.adaptivePlatformDensity,
-        scaffoldBackgroundColor: Colors.black, // Dark background for Feed
+        // Set a neutral default color (views will override as needed)
+        scaffoldBackgroundColor: Colors.white,
         fontFamily: 'Arial',
       ),
       initialBinding: AppBinding(),
