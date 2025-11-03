@@ -61,29 +61,30 @@ Color _getRandomColor() => Color.fromRGBO(
 
 // Mock product data
 final List<Product> mockProducts = [
+  // FIX: Explicitly request PNG format by adding '/png' to the URL path
   Product(
     id: 'p1',
     name: 'Vintage Camera',
     price: 299.99,
-    imageUrl: 'https://placehold.co/100x100/007bff/ffffff?text=Camera',
+    imageUrl: 'https://placehold.co/100x100/png/007bff/ffffff?text=Camera',
   ),
   Product(
     id: 'p2',
     name: 'Leather Satchel',
     price: 145.00,
-    imageUrl: 'https://placehold.co/100x100/dc3545/ffffff?text=Satchel',
+    imageUrl: 'https://placehold.co/100x100/png/dc3545/ffffff?text=Satchel',
   ),
   Product(
     id: 'p3',
     name: 'Noise Cancelling Headphones',
     price: 350.50,
-    imageUrl: 'https://placehold.co/100x100/28a745/ffffff?text=Headphones',
+    imageUrl: 'https://placehold.co/100x100/png/28a745/ffffff?text=Headphones',
   ),
   Product(
     id: 'p4',
     name: 'Minimalist Watch',
     price: 89.99,
-    imageUrl: 'https://placehold.co/100x100/ffc107/343a40?text=Watch',
+    imageUrl: 'https://placehold.co/100x100/png/ffc107/343a40?text=Watch',
   ),
 ];
 
