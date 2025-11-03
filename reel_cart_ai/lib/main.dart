@@ -248,3 +248,50 @@ class ProductTag extends StatelessWidget {
     );
   }
 }
+
+// Overlay to display all shoppable products for the current video
+class ShoppableOverlay extends GetView<VideoFeedController> {
+  final VideoItem video;
+
+  const ShoppableOverlay({Key? key, required this.video}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      bottom: 60, // Above the controls
+      left: 10,
+      right: 10,
+      child: Obx(() {
+        if (!controller.isProductOverlayVisible.value) {
+          return const SizedBox.shrink();
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // List of product tags
+            ...video.shoppableProducts
+                .map((p) => ProductTag(product: p))
+                .toList(),
+
+            const SizedBox(height: 16),
+
+            // Interaction hint
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.pink.withOpacity(0.9),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Text(
+                'Tap anywhere to close tags',
+                style: TextStyle(color: Colors.white, fontSize: 12),
+              ),
+            ),
+          ],
+        );
+      }),
+    );
+  }
+}
