@@ -487,3 +487,13 @@ class VideoFeedView extends GetView<VideoFeedController> {
     );
   }
 }
+
+// 5. BINDINGS
+
+// Initializes the controller when the app starts
+class AppBinding extends Bindings {
+  @override
+  void dependencies() {
+    Get.lazyPut<VideoFeedController>(() => VideoFeedController());
+  }
+}
