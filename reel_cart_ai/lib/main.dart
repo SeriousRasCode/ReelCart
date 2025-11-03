@@ -61,7 +61,7 @@ Color _getRandomColor() => Color.fromRGBO(
 
 // Mock product data
 final List<Product> mockProducts = [
-  // FIX: Explicitly request PNG format by adding '/png' to the URL path
+  // Keeping URLs for a real environment, but switching UI to use local Icons for stability in Canvas.
   Product(
     id: 'p1',
     name: 'Vintage Camera',
@@ -262,16 +262,26 @@ class ProductTag extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // FIX: Replaced NetworkImage with a robust local Icon for stability.
           Container(
             width: 40,
             height: 40,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
               color: Colors.grey[200],
               borderRadius: BorderRadius.circular(8),
-              image: DecorationImage(
-                image: NetworkImage(product.imageUrl),
-                fit: BoxFit.cover,
-              ),
+            ),
+            // Use simple conditional logic to display a relevant placeholder icon
+            child: Icon(
+              product.name.contains('Camera')
+                  ? Icons.camera_alt_outlined
+                  : product.name.contains('Satchel')
+                  ? Icons.shopping_bag_outlined
+                  : product.name.contains('Headphones')
+                  ? Icons.headphones_outlined
+                  : Icons.watch_outlined,
+              color: Colors.black54,
+              size: 24,
             ),
           ),
           const SizedBox(width: 8),
