@@ -497,3 +497,28 @@ class AppBinding extends Bindings {
     Get.lazyPut<VideoFeedController>(() => VideoFeedController());
   }
 }
+
+// 6. MAIN APP SETUP
+
+void main() {
+  runApp(const ReelCartApp());
+}
+
+class ReelCartApp extends StatelessWidget {
+  const ReelCartApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      title: 'ReelCart AI',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        primarySwatch: Colors.pink,
+        visualDensity: VisualDensity.adaptivePlatformDensity,
+        scaffoldBackgroundColor: Colors.black, // Dark background for video feed
+      ),
+      initialBinding: AppBinding(),
+      home: const VideoFeedView(),
+    );
+  }
+}
