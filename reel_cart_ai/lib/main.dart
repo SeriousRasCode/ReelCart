@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'dart:math';
 
+// ----------------------------------------------------
 // 1. MODELS
+// ----------------------------------------------------
 
 // Defines a single product that can be tagged in a video
 class Product {
@@ -19,14 +21,18 @@ class Product {
   });
 }
 
-// Defines a single shoppable video item
+// Defines a single shoppable video item (updated with engagement state)
 class VideoItem {
   final String id;
   final String title;
   final String creator;
-  final String videoUrl;
+  final String videoUrl; // Mocked for this MVP
   final List<Product> shoppableProducts;
-  final Color mockColor;
+  final Color mockColor; // For visual difference in the feed
+
+  // State for functionality
+  bool isLiked;
+  int likeCount;
 
   VideoItem({
     required this.id,
@@ -35,11 +41,16 @@ class VideoItem {
     required this.videoUrl,
     required this.shoppableProducts,
     required this.mockColor,
+    this.isLiked = false,
+    this.likeCount = 0,
   });
 }
 
-// 2. DATA SERVICE
+// ----------------------------------------------------
+// 2. DATA SERVICE (MOCK AI RECOMMENDATION ENGINE)
+// ----------------------------------------------------
 
+// Utility to generate random colors for mock videos
 final _random = Random();
 Color _getRandomColor() => Color.fromRGBO(
   _random.nextInt(256),
@@ -77,7 +88,7 @@ final List<Product> mockProducts = [
 ];
 
 // Mock video data generation
-List<VideoItem> generateMockVideos(int count) {
+List<VideoItem> generateMockVideos(int count, int startingIndex) {
   return List<VideoItem>.generate(count, (index) {
     // Select 1-2 random products for shopping tags
     final products =
@@ -85,18 +96,71 @@ List<VideoItem> generateMockVideos(int count) {
             .toList();
 
     return VideoItem(
-      id: 'v${index + 1}',
-      title: 'Aesthetic shot #${index + 1}',
-      creator: 'ReelCartCreator${index + 1}',
-      videoUrl: 'mock_video_url_${index + 1}',
+      id: 'v${startingIndex + index + 1}',
+      title: 'AI Recommendation Reel #${startingIndex + index + 1}',
+      creator: 'Creator_${startingIndex + index + 1}',
+      videoUrl: 'mock_video_url_${startingIndex + index + 1}',
       shoppableProducts: products,
       mockColor: _getRandomColor(),
+      // Simulate initial engagement data
+      likeCount: 500 + _random.nextInt(2000),
+      isLiked: _random.nextBool(),
     );
   });
 }
 
-// 3. GETX CONTROLLER
+// ----------------------------------------------------
+// 3. GETX CONTROLLERS
+// ----------------------------------------------------
 
+/// Controller for the state of a single video reel (playback and engagement).
+class ReelController extends GetxController {
+  final VideoItem video;
+
+  // Simulated Video Player State
+  final isPlaying = true.obs;
+
+  // Engagement State
+  final isLiked = false.obs;
+  final likeCount = 0.obs;
+
+  ReelController(this.video) {
+    // Initialize observable states from the model data
+    likeCount.value = video.likeCount;
+    isLiked.value = video.isLiked;
+
+    // In a real app, you would initialize and start the video player here.
+    // E.g., _videoPlayerController = VideoPlayerController.network(video.videoUrl);
+    // _videoPlayerController.initialize().then((_) => isPlaying.value = true);
+  }
+
+  void togglePlayPause() {
+    isPlaying.toggle();
+    // In a real app: isPlaying.value ? _videoPlayerController.play() : _videoPlayerController.pause();
+    Get.snackbar(
+      'Playback Status',
+      isPlaying.value ? 'Video is playing.' : 'Video is paused.',
+      snackPosition: SnackPosition.BOTTOM,
+      duration: const Duration(milliseconds: 800),
+      backgroundColor: Colors.white.withOpacity(0.9),
+      colorText: Colors.black,
+    );
+  }
+
+  void toggleLike() {
+    isLiked.toggle();
+    if (isLiked.value) {
+      likeCount.value++;
+    } else {
+      likeCount.value--;
+    }
+    // Update the underlying model state (simulating API call)
+    video.likeCount = likeCount.value;
+    video.isLiked = isLiked.value;
+  }
+}
+
+/// Controller for managing the entire endless video feed.
 class VideoFeedController extends GetxController {
   // The endless feed of shoppable videos
   final videos = <VideoItem>[].obs;
@@ -107,16 +171,18 @@ class VideoFeedController extends GetxController {
   // The index of the video currently being viewed
   int currentVideoIndex = 0;
 
+  // Reference to the currently active ReelController
+  ReelController? activeReelController;
+
   @override
   void onInit() {
-    // 1. Initial Load: Load the first set of recommended videos
     loadInitialFeed();
     super.onInit();
   }
 
   // Simulates loading the initial personalized feed
   void loadInitialFeed() {
-    videos.assignAll(generateMockVideos(5));
+    videos.assignAll(generateMockVideos(5, 0));
     Get.snackbar(
       'Feed Ready',
       '5 personalized videos loaded.',
@@ -126,14 +192,11 @@ class VideoFeedController extends GetxController {
 
   // Simulates the AI Recommendation Engine loading more content
   void loadMoreVideos() async {
-    // Prevent multiple simultaneous loads
-    if (videos.length > 20) return; // Simple safety limit for MVP
+    if (videos.length > 20) return;
 
-    // Simulate network delay
     await 2.seconds.delay();
 
-    // The core AI logic simulation: Append a new batch of 5 videos
-    final newVideos = generateMockVideos(5);
+    final newVideos = generateMockVideos(5, videos.length);
     videos.addAll(newVideos);
 
     Get.snackbar(
@@ -146,12 +209,18 @@ class VideoFeedController extends GetxController {
 
   // Handles the vertical scroll event (user viewing a new video)
   void onVideoPageChanged(int index) {
+    // 1. Reset state of old video and update index
+    activeReelController?.isPlaying.value = false; // Pause the previous video
     currentVideoIndex = index;
-    // Hide overlay when video changes
     isProductOverlayVisible.value = false;
 
-    // Trigger AI loading for more content when near the end of the current feed
+    // 2. Load the controller for the new video and start it
+    // We fetch the new controller using its tag (the video ID)
+    final newController = Get.find<ReelController>(tag: videos[index].id);
+    newController.isPlaying.value = true; // Auto-play new video
+    activeReelController = newController;
 
+    // 3. Trigger AI loading for more content when near the end of the current feed
     if (index >= videos.length - 3) {
       loadMoreVideos();
     }
@@ -163,7 +232,9 @@ class VideoFeedController extends GetxController {
   }
 }
 
+// ----------------------------------------------------
 // 4. VIEWS (UI)
+// ----------------------------------------------------
 
 // Product card shown in the overlay
 class ProductTag extends StatelessWidget {
@@ -216,7 +287,7 @@ class ProductTag extends StatelessWidget {
               ),
               Text(
                 '\$${product.price.toStringAsFixed(2)}',
-                style: TextStyle(
+                style: const TextStyle(
                   color: Colors.pink,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -297,28 +368,64 @@ class ShoppableOverlay extends GetView<VideoFeedController> {
 }
 
 // Single Video Player (The core Reel)
-class VideoPlayerWidget extends GetView<VideoFeedController> {
+class VideoPlayerWidget extends StatelessWidget {
   final VideoItem video;
 
-  const VideoPlayerWidget({Key? key, required this.video}) : super(key: key);
+  // Use a tag to retrieve the specific controller instance for this video
+  final ReelController reelController;
+
+  VideoPlayerWidget({Key? key, required this.video})
+    : reelController = Get.put(
+        ReelController(video),
+        tag: video.id,
+      ), // Dependency injection for the reel
+      super(key: key);
 
   @override
   Widget build(BuildContext context) {
     // Using a Stack to layer the video (mock), the overlay, and the controls
     return GestureDetector(
-      onTap: controller.toggleProductOverlay,
+      onTap: Get.find<VideoFeedController>().toggleProductOverlay,
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // 1. Mock Video Player (Placeholder background)
+          // 1. Simulated Video Player View (Background color as the video screen)
           Container(
             color: video.mockColor,
-            child: const Center(
-              child: Icon(Icons.play_arrow, size: 80, color: Colors.white54),
+            child: Center(
+              // Obx handles the Play/Pause icon visibility
+              child: Obx(
+                () => reelController.isPlaying.value
+                    ? const SizedBox.shrink() // Video is playing, hide button
+                    : GestureDetector(
+                        onTap: reelController.togglePlayPause,
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.play_arrow_rounded,
+                            size: 80,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+              ),
             ),
           ),
 
-          // 2. Video Metadata (Bottom Left)
+          // 2. Play/Pause Action overlay
+          Positioned.fill(
+            child: GestureDetector(
+              onDoubleTap: reelController.toggleLike, // Double tap to like
+              onTap: reelController.togglePlayPause, // Single tap to play/pause
+              child: const SizedBox.expand(),
+            ),
+          ),
+
+          // 3. Video Metadata (Bottom Left)
           Positioned(
             bottom: 20,
             left: 15,
@@ -347,84 +454,120 @@ class VideoPlayerWidget extends GetView<VideoFeedController> {
             ),
           ),
 
-          // 3. Right-side Action Buttons (Simulated engagement/seller actions)
+          // 4. Right-side Action Buttons (Engagement and Seller actions)
           Positioned(
             bottom: 20,
             right: 10,
-            child: Column(
-              children: [
-                // Shoppable Tag/Product Icon
-                const Icon(
-                  Icons.local_offer,
-                  color: Colors.pinkAccent,
-                  size: 30,
-                ),
-                Text(
-                  '${video.shoppableProducts.length}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
+            child: Obx(
+              () => Column(
+                children: [
+                  // Shoppable Tag/Product Icon
+                  InkWell(
+                    onTap: Get.find<VideoFeedController>().toggleProductOverlay,
+                    child: const Column(
+                      children: [
+                        Icon(
+                          Icons.local_offer,
+                          color: Colors.pinkAccent,
+                          size: 30,
+                        ),
+                        Text(
+                          'Tags',
+                          style: TextStyle(color: Colors.white, fontSize: 12),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 20),
+                  const SizedBox(height: 20),
 
-                // Like Button
-                const Icon(Icons.favorite, color: Colors.white, size: 30),
-                const Text('1.2K', style: TextStyle(color: Colors.white)),
-                const SizedBox(height: 20),
+                  // Functional Like Button
+                  InkWell(
+                    onTap: reelController.toggleLike,
+                    child: Column(
+                      children: [
+                        Icon(
+                          reelController.isLiked.value
+                              ? Icons.favorite
+                              : Icons.favorite_border,
+                          color: reelController.isLiked.value
+                              ? Colors.red
+                              : Colors.white,
+                          size: 30,
+                        ),
+                        Text(
+                          '${reelController.likeCount.value}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
 
-                // Share Button
-                const Icon(Icons.share, color: Colors.white, size: 30),
-                const Text('45', style: TextStyle(color: Colors.white)),
-              ],
+                  // Share Button
+                  const Icon(Icons.share, color: Colors.white, size: 30),
+                  const Text(
+                    '45',
+                    style: TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                ],
+              ),
             ),
           ),
 
-          // 4. Shoppable Tags Overlay
+          // 5. Shoppable Tags Overlay
           ShoppableOverlay(video: video),
 
-          // 5. Loading Indicator (When AI is fetching more reels)
-          Obx(() {
-            if (controller.videos.isEmpty) {
-              return const Center(
-                child: CircularProgressIndicator(color: Colors.white),
-              );
-            }
-            // Check if this is the last or near-last video while loading more
-            if (controller.videos.length - 1 <=
-                    controller.currentVideoIndex + 1 &&
-                controller.videos.length < 20) {
-              return Positioned(
-                bottom: 10,
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
+          // 6. Loading Indicator (When AI is fetching more reels)
+          GetX<VideoFeedController>(
+            builder: (controller) {
+              if (controller.videos.isEmpty) {
+                return const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                );
+              }
+              // Check if this is the last or near-last video while loading more
+              if (controller.videos.length - 1 <=
+                      controller.currentVideoIndex + 1 &&
+                  controller.videos.length < 20) {
+                return Positioned(
+                  bottom: 10,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      SizedBox(width: 8),
-                      Text(
-                        'AI Curating Next Reel...',
-                        style: TextStyle(color: Colors.white, fontSize: 12),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'AI Curating Next Reel...',
+                            style: TextStyle(color: Colors.white, fontSize: 12),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              );
-            }
-            return const SizedBox.shrink();
-          }),
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
         ],
       ),
     );
@@ -474,12 +617,16 @@ class VideoFeedView extends GetView<VideoFeedController> {
         }
 
         // Use PageView.builder to handle the vertical scrolling experience
+        // which represents the endless feed.
         return PageView.builder(
           scrollDirection: Axis.vertical,
           itemCount: controller.videos.length,
-          onPageChanged: controller.onVideoPageChanged,
+          onPageChanged: (index) {
+            controller.onVideoPageChanged(index);
+          },
           itemBuilder: (context, index) {
             final video = controller.videos[index];
+            // Each video now creates and manages its own ReelController instance
             return VideoPlayerWidget(video: video);
           },
         );
@@ -488,7 +635,9 @@ class VideoFeedView extends GetView<VideoFeedController> {
   }
 }
 
+// ----------------------------------------------------
 // 5. BINDINGS
+// ----------------------------------------------------
 
 // Initializes the controller when the app starts
 class AppBinding extends Bindings {
@@ -498,7 +647,9 @@ class AppBinding extends Bindings {
   }
 }
 
+// ----------------------------------------------------
 // 6. MAIN APP SETUP
+// ----------------------------------------------------
 
 void main() {
   runApp(const ReelCartApp());
