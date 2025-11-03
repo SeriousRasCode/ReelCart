@@ -295,3 +295,138 @@ class ShoppableOverlay extends GetView<VideoFeedController> {
     );
   }
 }
+
+// Single Video Player (The core Reel)
+class VideoPlayerWidget extends GetView<VideoFeedController> {
+  final VideoItem video;
+
+  const VideoPlayerWidget({Key? key, required this.video}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    // Using a Stack to layer the video (mock), the overlay, and the controls
+    return GestureDetector(
+      onTap: controller.toggleProductOverlay,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // 1. Mock Video Player (Placeholder background)
+          Container(
+            color: video.mockColor,
+            child: const Center(
+              child: Icon(Icons.play_arrow, size: 80, color: Colors.white54),
+            ),
+          ),
+
+          // 2. Video Metadata (Bottom Left)
+          Positioned(
+            bottom: 20,
+            left: 15,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '@${video.creator}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                SizedBox(
+                  width: Get.width * 0.7,
+                  child: Text(
+                    video.title,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // 3. Right-side Action Buttons (Simulated engagement/seller actions)
+          Positioned(
+            bottom: 20,
+            right: 10,
+            child: Column(
+              children: [
+                // Shoppable Tag/Product Icon
+                const Icon(
+                  Icons.local_offer,
+                  color: Colors.pinkAccent,
+                  size: 30,
+                ),
+                Text(
+                  '${video.shoppableProducts.length}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Like Button
+                const Icon(Icons.favorite, color: Colors.white, size: 30),
+                const Text('1.2K', style: TextStyle(color: Colors.white)),
+                const SizedBox(height: 20),
+
+                // Share Button
+                const Icon(Icons.share, color: Colors.white, size: 30),
+                const Text('45', style: TextStyle(color: Colors.white)),
+              ],
+            ),
+          ),
+
+          // 4. Shoppable Tags Overlay
+          ShoppableOverlay(video: video),
+
+          // 5. Loading Indicator (When AI is fetching more reels)
+          Obx(() {
+            if (controller.videos.isEmpty) {
+              return const Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              );
+            }
+            // Check if this is the last or near-last video while loading more
+            if (controller.videos.length - 1 <=
+                    controller.currentVideoIndex + 1 &&
+                controller.videos.length < 20) {
+              return Positioned(
+                bottom: 10,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'AI Curating Next Reel...',
+                        style: TextStyle(color: Colors.white, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+            return const SizedBox.shrink();
+          }),
+        ],
+      ),
+    );
+  }
+}
