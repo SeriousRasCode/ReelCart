@@ -3,7 +3,6 @@ import 'package:get/get.dart';
 import 'dart:math';
 
 // 1. MODELS
-// ----------------------------------------------------
 
 // Defines a single product that can be tagged in a video
 class Product {
@@ -25,9 +24,9 @@ class VideoItem {
   final String id;
   final String title;
   final String creator;
-  final String videoUrl; // Mocked for this MVP
+  final String videoUrl;
   final List<Product> shoppableProducts;
-  final Color mockColor; // For visual difference in the feed
+  final Color mockColor;
 
   VideoItem({
     required this.id,
