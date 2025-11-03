@@ -343,7 +343,7 @@ class ProductTag extends StatelessWidget {
   final Product product;
   final CartController cartController = Get.find<CartController>();
 
-  const ProductTag({Key? key, required this.product}) : super(key: key);
+  ProductTag({Key? key, required this.product}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
