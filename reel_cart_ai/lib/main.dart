@@ -166,8 +166,7 @@ class CartController extends GetxController {
   // Helper to ensure all items' quantity changes are tracked
   void _setupQuantityListeners() {
     for (var item in cartItems) {
-      // Ensure only one listener per item's quantity is active
-      item.quantity.removeAllListeners();
+      // Add listener for item's quantity changes
       ever(item.quantity, (_) => _updateTotals());
     }
   }
